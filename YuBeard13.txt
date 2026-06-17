@@ -1,0 +1,1831 @@
+1
+
+Vision-based Local-level Frame Mapping and
+Planning in Spherical Coordinates for Miniature Air
+Vehicles
+Huili Yu*
+
+Randal W. Beard**
+
+Abstract—This paper presents a vision-based collision avoid-
+
+For many applications, MAVs are required to navigate in urban
+
+ance technique for Small and Miniature Air Vehicles (MAVs)
+
+environments where obstacles of various types and sizes may
+
+using local-level frame mapping and planning in spherical coor-
+
+hinder the success of the mission. MAVs must have the ability
+
+dinates. To explicitly address the obstacle initialization problem,
+the maps are parameterized using the inverse time-to-collision
+
+to autonomously avoid collisions with buildings, trees, or other
+
+(TTC). Using bearing-only measurements, an extended Kalman
+
+obstacles. Accordingly, path planning is a desirable feature for
+
+Filter (EKF) is employed to estimate the inverse TTC, azimuth,
+
+MAVs and has received significant attention [1]–[5].
+
+and elevation to obstacles. Nonlinear observability analysis is used
+to derive conditions for the observability of the system. Based
+
+The general framework for the path planning problem can
+be described as follows: given a description of the envi-
+
+on these conditions, we design a path planning algorithm which
+simultaneously minimizes the uncertainties in state estimation
+
+ronment, find a feasible path between two configurations in
+
+while avoiding collisions with obstacles. The behavior of the
+
+the environment that does not result in a collision with any
+
+planning algorithm is analyzed and the characteristics of the
+
+obstacles. The path planning problem can be grouped into
+
+environment in which the planning algorithm is guaranteed to
+
+global path planning and local path planning. Global path
+
+generate collision-free paths for MAVs are described. Numerical
+
+planning requires complete knowledge of the environment and
+
+results show that the proposed method is successful in solving
+the path planning problem for MAVs.
+
+a static terrain. In that setting a feasible path from the start to
+the destination configuration is generated before the vehicle
+
+I. I NTRODUCTION
+
+begins its motion [6]. The global path planning problem
+has been addressed by many researchers and common solu-
+
+In recent years, there has been significant research on the
+development of Miniature Air Vehicles (MAVs) with important
+military and civilian applications. In situations where a given
+task might be either too dangerous or difficult, it may be
+desirable to replace human-operated vehicles with MAVs [1].
+
+tion techniques include potential fields methods, probabilistic
+roadmap methods and cell decomposition methods [7].
+On the other hand, local path planning is executed in
+real-time during flight. The basic idea is to first sense the
+obstacles in the environment and then determine a collision-
+
+*Graduate research assistant in the Department of Electrical and
+Computer Engineering, Brigham Young University, Provo, USA,
+
+free path [2]. Local path planning algorithms require sensors
+
+huiliyu.yhl@gmail.com
+
+to detect obstacles. Among the suite of possible sensors, a
+
+**Professor in the Department of Electrical and Computer Engineering,
+Brigham Young University, Provo, USA, beard@byu.edu
+
+video camera is cheap and lightweight and fits the physical
+
+2
+
+requirements of MAVs [2]. Since the camera measurements are
+
+features separately from the map and accumulate depth infor-
+
+obtained in the body frame, it is most natural to create maps
+
+mation over several video frames to reduce depth uncertainty
+
+and to plan paths directly in the local-level frame of the MAV.
+
+before adding the new features to the map [14]–[16]. However,
+
+References [8]–[11] develop vision-based local-level frame
+
+the drawback of using these methods for collision avoidance is
+
+mapping and path planning algorithms. The key idea is to
+
+that the new observed obstacles do not contribute to the path
+
+create polar and cylindrical maps and to plan paths using time-
+
+generation until they are added to the map. Reference [13]
+
+to-collision (TTC) and bearing measurements obtained by a
+
+develops an undelayed feature initialization method that can
+
+camera, without transforming to the inertial frame. However,
+
+handle the initialization of features at all depths within the
+
+because of projective geometry, a monocular camera really
+
+standard EKF framework using direct parametrization of in-
+
+only measures the bearing to the object. TTC can be estimated
+
+verse depth relative to the camera position from which a
+
+by considering the change in the size of the object in the
+
+feature was first observed. The inverse depth parametrization
+
+image plane, but this estimate relies on accurately segmenting
+
+represents a feature by a six-state vector, which is computa-
+
+the image, which can be a noisy process. Therefore, it is
+
+tionally expensive. Once the depth estimate is accurate enough,
+
+a reasonable engineering choice to consider a monocular
+
+the inverse depth parametrization is converted to Euclidean
+
+camera as a bearing-only measurement device and use it to
+
+XYZ form to speed up the computation.
+
+estimate both TTC and bearing. Our previous work in [12]
+
+This paper explores a vision-based local-level frame map-
+
+develops an observability-based planning technique for MAVs,
+
+ping and planning technique for MAVs. Using bearing-only
+
+where the TTC and bearing are estimated using bearing-only
+
+measurements obtained by a monocular camera, we employ
+
+measurements, and a two dimensional planning algorithm is
+
+an EKF to estimate the inverse TTC, azimuth, and elevation
+
+developed to minimize the uncertainties in the state estimates
+
+angles to near-by obstacles, and then construct a map in local-
+
+while simultaneously avoiding collisions. However, in [12],
+
+level spherical coordinates. The spherical map is parameter-
+
+the obstacle initialization problem was not addressed and the
+
+ized using the inverse TTC, azimuth and elevation, which
+
+behavior of the planning algorithm was not carefully analyzed.
+
+allows the obstacle initialization problem to be addressed
+
+Feature initialization is a critical issue for a bearing-only
+
+explicitly. In addition, compared to using a switching strategy
+
+camera. Since the camera only provides the bearing to a
+
+between the inverse depth parametrization and Euclidean XYZ
+
+feature, the TTC estimate for the feature is uncertain when it
+
+representation, parameterizing the map only using the inverse
+
+is initially observed or when the feature exhibits low parallax
+
+TTC, azimuth, and elevation enhances the computational ef-
+
+during motion of the platform. The uncertainties are not well
+
+ficiency. We perform the observability analysis of the state
+
+represented by a Gaussian distribution in the context of an
+
+estimation process from bearing-only measurements and find
+
+extended Kalman Filter (EKF) [13]. There have been methods
+
+the conditions for the observability of the system. Based
+
+presented for addressing the feature initialization problem in
+
+on the derived conditions, we design the planning algorithm
+
+the Simultaneous Localization and Mapping (SLAM) commu-
+
+that minimizes the uncertainties of the state estimates while
+
+nity. The methods are classified into delayed and undelayed
+
+simultaneously avoiding collisions with obstacles. We analyze
+
+initialization.
+
+the behavior of the planning algorithm and describe the
+
+Delayed initialization methods consider the new observed
+
+characteristics of the environment in which the algorithm is
+
+3
+
+guaranteed to generate collision-free paths for the MAV.
+
+obstacle relative to the MAV in the local-level frame, where
+
+The paper is organized as follows. Section II describes our
+
+Oi represents the obstacle, and ri , η i and ξ i are the range,
+
+approach to vision-based spherical mapping in the local-level
+
+azimuth, and elevation to the obstacle. The positive directions
+
+frame using the inverse TTC, azimuth, and elevation. Nonlin-
+
+of azimuth η i and elevation ξ i are defined as the right-handed
+
+ear observability analysis of the system is also presented. In
+
+rotation about the z-axis and y-axis of the local-level frame
+
+Section III, a planning algorithm is presented based on the
+
+respectively. Based on Fig. 1, the equations of motion of the
+
+observability conditions. Section IV analyzes the behavior of
+the planning algorithm. Section V presents numerical results
+that demonstrate the effectiveness of the algorithm.
+
+II. V ISION - BASED LOCAL - LEVEL FRAME MAPPING IN
+SPHERICAL COORDINATES
+
+In this section we will build a map using the inverse TTC
+to obstacles in the local-level frame of the MAV. The map is
+constructed in spherical coordinates by estimating the inverse
+TTC, azimuth, and elevation to obstacles. We then perform a
+
+Fig. 1. This figure shows the motion of the ith obstacle relative to the
+MAV. The current MAV configuration is qt . The obstacle is represented by
+Oi . The pitch angle is represented by θ . The range, azimuth and elevation to
+the obstacle are represented by ri , η i and ξ i . The ground speed is represented
+by V .
+
+nonlinear observability analysis of the state estimation problem
+using bearing-only measurements, and find the conditions for
+
+obstacle relative to the MAV in terms of the range, azimuth,
+
+complete observability of the system.
+
+and elevation are given by
+ṙi
+
+A. Estimates of inverse TTC, azimuth, and elevation
+
+= −V cos θ cos η i cos ξ i −V sin θ sin ξ i ,
+
+η̇ i
+
+=
+
+ξ̇ i
+
+=
+
+We construct the obstacle map in the local-level frame,
+where the local-level frame is the body frame with roll and
+
+V cos θ sin η i
+
+− ψ̇ ,
+ri cos ξ i
+V cos θ cos η i sin ξ i −V sin θ cos ξ i
+,
+ri
+
+(1)
+(2)
+(3)
+
+pitch angles removed. The origin of the local-level frame is
+
+where we assume coordinated turn conditions ψ̇ = Vg tan ϕ ,
+
+the MAV’s center of mass. The x-axis points out the nose of
+
+and where g is the acceleration due to gravity and ϕ is the
+
+the airframe when the airframe has a zero pitch angle, the y-
+
+roll angle of the MAV. Let τ i = V /ri represent the inverse TTC
+
+axis points out the right wing when the airframe has a zero
+
+to the obstacle. Substituting τ i into Eqs. (1) - (3) and adding
+
+roll angle, and the z-axis points into the Earth. Throughout the
+paper we will assume zero wind conditions. Let V represent
+the ground speed of the MAV and let ψ and θ represent the
+
+process noise gives the equation of motion of the ith obstacle
+relative to the MAV in the local-level frame in terms of the
+inverse TTC, azimuth, and elevation as
+
+heading and pitch angles respectively. With the zero wind
+assumption, the ground speed V is equal to the airspeed,
+which can be measured by a differential pressure sensor. In
+this paper, we assume that V is available to the estimation
+and planning algorithms. Figure 1 shows the motion of the ith
+
+ẋi =
+
+
+
+
+
+= 
+
+
+
+f(xi , u) + wi
+(τ i )2 cos θ cos η i cos ξ i + (τ i )2 sin θ sin ξ i
+θ sin η i
+τ i coscos
+− ψ̇
+ξi
+
+τ i cos θ cos η i sin ξ i − τ i sin θ cos ξ i
+
+
+
+
+ + wi ,(4)
+
+
+
+4
+
+where xi = [τ i , η i , ξ i ]⊤ is the state, u = [ϕ , θ ]⊤ is the controlled
+input, and the process noise wi is a Gaussian random vector
+with zero mean and covariance matrix Qi .
+Since the camera directly measures the azimuth and eleva-
+
+Height (m)
+
+100
+0
+−100
+200
+
+tion angles, the measurement at time step k is given by
+
+
+i
+ ηk 
+i
+zik = h(xik ) + vik = 
+ + vk ,
+i
+ξk
+
+150
+100
+50
+0
+
+(5)
+
+200
+
+−50
+
+100
+
+−100
+Heading direction (m)
+
+0
+
+−150
+−200
+
+−100
+−200
+
+Right wing direction (m)
+
+where the measurement noise vik is a Gaussian random vector
+with zero mean and covariance matrix Rik . Based on Eqs. (4)
+and (5), the inverse TTC, azimuth, and elevation are estimated
+
+Fig. 2. This figure shows the local-level frame map in spherical coordinates.
+The origin of the map is the current location of the MAV. The blue dots are
+a numerical representation of the 95% uncertainty region in the inverse TTC
+for each obstacle.
+
+using the standard continuous-discrete EKF algorithm [17].
+When an obstacle is observed for the first time, we initialize
+
+information obtained by the camera, allowing the data to be
+
+the azimuth and elevation using the measurement data. The
+
+processed more efficiently. The maps are constructed using
+
+uncertainties of the initial inverse TTC to the obstacle can be
+
+the inverse TTC, azimuth and elevation, as shown in Fig. 2.
+
+well approximated by a Gaussian distribution with the mean
+
+The origin of the map is the current location of the MAV. The
+
+τ0 and the standard deviation στ0 [13]. The values for τ0 and
+
+blue dots are a numerical representation of the 95% uncertainty
+
+στ0 are set empirically such that the region within 2στ0 away
+
+region in the inverse TTC for each obstacle.
+
+from τ0 spans a range of the TTC from close to the camera
+up to infinity. Let zik represent the measurement for the new
+observed obstacle and let Rik represent the covariance matrix of
+measurement noise for that obstacle. The state for the obstacle
+⊤
+
+i ⊤
+is initialized as
+ [τ0 , zk ] and the error covariance matrix is
+
+ στ
+initialized as  0
+0
+2
+
+0 
+.
+Rik
+
+B. Local-level frame mapping in spherical coordinates
+
+C. Observability analysis
+We use the EKF to estimate the inverse TTC, azimuth, and
+elevation to obstacles using bearing-only measurements. In
+order to bound the error covariance computed by the EKF, the
+system should be observable. We use the nonlinear observability theory developed in [18], which states that the observability
+is achieved when a system satisfies the nonlinear observability
+
+We build a map directly in the local-level frame instead
+rank condition. Accordingly, we analyze the observability of
+of the inertial frame. Accordingly, we save the computational
+
+the system for the ith obstacle given by Eqs. (4) and (5) by
+
+expense, and remove the errors associated with transforming
+computing the rank of the observability matrix. For an angle
+the camera data from the local-level frame to the inertial frame,
+at the expense of updating the map using body motion. Since
+
+α , define cα , cos α and sα , sin α . The observability matrix
+is computed using Lie derivatives as described in [18]. The
+
+we do not assume that GPS is available, we must compute
+the map in the local-level frame because we do not have
+knowledge of the inertial location. We construct a map in
+spherical coordinates, which is more compatible with bearing
+
+0th order Lie derivative is
+
+i
+η
+
+
+Lf0 (h) = 
+.
+i
+ξ
+
+
+(6)
+
+5
+
+The 1st order Lie derivative is given by
+
+
+cθ sη i
+i
+0
+τ c i − ψ̇
+∂ Lf (h)
+
+
+ξ
+Lf1 (h) =
+f=
+.
+i
+∂x
+i
+i
+τ cθ cη i sξ i − τ sθ cξ i
+
+Proof: The observability matrix given by Eq. (9) loses
+rank if and only if all elements in the first column are
+(7)
+
+zero. Accordingly, the ith obstacle, whose motion is given by
+Eqs. (4) and (5), is unobservable if and only if all elements
+
+The 2nd order Lie derivative is given by
+
+in the first column are zero. Oi31 is equal to zero at time t
+
+∂ Lf1 (h)
+Lf2 (h) =
+f
+∂ xi
+
+2(τ i )2 c2 s c
+
+if and only if η i (t) = 0. Oi41 is equal to zero at time t if
+
+
+and only if ξ i (t) = θ (t). Oi51 is equal to zero at time t if
+
+
+
+
+
+
+
+i
+2
+2
+i
+2
+2
+ 2(τ ) sθ cθ cη i sξ i − 2(τ ) sθ cθ cη i cξ i 
+.
+=
+
+
+ +2(τ i )2 c2 c2 i c i s i − 2(τ i )2 s2 c i s i 
+θ η ξ ξ
+θ ξ ξ 
+
+
+
+(τ i )2 c2θ s2 i sξ i
+η
+i c s s ψ̇
+−
+−
+τ
+i
+i
+θ
+η
+ξ
+c i
+
+both η i (t) = 0 and ψ̇ = Vg tan ϕ = 0, which implies ϕ (t) = 0.
+
+θ ηi ηi
+c2 i
+ξ
+
+− ψ̇
+
+τ i cθ cη i
+cξ i
+
+(8)
+
+Therefore, the system is unobservable at time t if and only if
+all three conditions η i (t) = 0, ξ i (t) = θ (t), and ϕ (t) = 0 are
+simultaneously satisfied.
+
+ξ
+
+The first five rows of the observability matrix is then computed
+
+The conditions in Lemma 1 state that the system is observable when the MAV does not directly fly toward the obstacle.
+
+as
+
+
+
+0
+
+
+ 0
+
+ c s i
+ θ
+Oi =  c ηi
+ ξ
+
+ i
+ O41
+
+Oi51
+
+1
+
+0
+
+0
+
+1
+
+τ i cθ cη i
+cξ i
+
+τ i cθ sη i sξ i
+
+Oi42
+
+Oi43
+
+Oi52
+
+Oi53
+
+c2 i
+ξ
+
+
+
+
+
+
+
+,
+
+
+
+
+
+
+When the MAV is not flying directly at the obstacle, parallax
+can be used to estimate time-to-collision.
+(9)
+
+where
+
+III. PATH PLANNING IN THE LOCAL - LEVEL FRAME
+The convergence and boundedness of the EKF are achieved
+when the system is fully observable [19]. Bounds on the
+EKF error covariance Pi for the ith obstacle are related to
+
+Oi41
+
+= cθ cη i sξ i − sθ cξ i ,
+
+Oi51
+
+=
+
+4τ i c2θ sη i cη i
+c2ξ i
+
+−
+
+ψ̇ cθ cη i
+,
+cξ i
+
+where it can be shown that subsequent Lie derivatives result in
+
+the observability of the system given by Lemma 2 as shown
+in [19].
+Lemma 2 ( [19]): Suppose that there exist positive real
+⊤
+
+scalars α1 , α2 , β1 , β2 such that β1 I ≤ Oi Oi ≤ β2 I and
+⊤
+
+Lemma 1 gives the conditions under which the system for the
+
+α2 I ≥ Ci Ci ≥ α1 I then,
+(
+)
+(
+)
+1
+1
+i
+I
+≤
+P
+≤
+α
++
+I,
+2
+k
+β1
+β2 + α11
+
+ith obstacle is observable.
+
+where Ci is the controllability matrix and I is the identity
+
+additional rows that do not add to the rank of Oi , and where
+the other coefficients Oi42 , etc, do not affect the rank of Oi .
+
+(10)
+
+matrix.
+Lemma 1: The ith obstacle, whose motion is given by
+
+The novel result in this paper is a the path planning
+
+Eqs. (4) and (5), is observable at time t if and only if at least
+
+algorithm that minimizes the uncertainties of the inverse TTC,
+
+one of the following three conditions is satisfied (a) η i (t) ̸= 0,
+
+azimuth, and elevation estimates while simultaneously causing
+
+(b) ξ i (t) ̸= θ (t), and (c) ϕ (t) ̸= 0, where η i (t) and ξ i (t) are
+
+the MAV to avoid collisions. Based on Lemma 2, we see that
+
+the azimuth and elevation angles to the obstacle, and ϕ (t) and
+
+the minimum eigenvalue of the matrix Oi Oi determines the
+
+θ (t) are the roll and pitch angles of the MAV.
+
+upper bound on the error covariance. To minimize the upper
+
+⊤
+
+6
+
+bound on the error covariance, the minimum eigenvalue should
+
+the utility function S : R3n+3 → R as
+
+be maximized, which is equivalent to minimizing the inverse
+
+S(νt ) =
+
+of the minimum eigenvalue. This implies that minimizing the
+inverse of the minimum eigenvalue will minimize the uncertainties of the inverse TTC, azimuth, and elevation estimates.
+
+a1
++ a2 (ηtg )2 + a3 (ξtg )2
+(τtg )2
+n
+bi IBt (i)
++∑
+,
+i⊤ i
+i=1 λmin (O O )
+
+(11)
+
+where a1 , a2 , a3 , bi , i = 1, · · · , n are positive weights,
+⊤
+
+⊤
+
+In addition, when the system is unobservable, which corre-
+
+λmin (Oi Oi ) is the minimum eigenvalue of the matrix Oi Oi ,
+
+sponds to the case where the MAV directly flies toward the
+
+and IBt (i) is the indicator function that is equal to one when
+
+obstacle as shown in Lemma 2, the rank of the observability
+
+i ∈ Bt and zero otherwise. Minimizing the first three terms
+
+matrix is two and the inverse of the minimum eigenvalue
+
+of Eq. (11) drives the MAV to the goal. The fourth term
+
+is infinite. When the system is observable, the rank of the
+
+penalizes the weighted sum of the inverse of the minimum
+
+observability matrix is three and the inverse of the minimum
+
+eigenvalue for all obstacles. By minimizing the fourth term,
+
+eigenvalue is finite. Minimizing the inverse of the minimum
+
+the algorithm achieves two objectives simultaneously. First, it
+
+eigenvalue ensures that the observability conditions given by
+
+minimizes the uncertainties in the inverse TTC, azimuth, and
+
+Lemma 1 are satisfied, causing the MAV to avoid flying toward
+
+elevation estimates. Second, the MAV is steered around the
+
+the obstacle. Accordingly, the minimization of the inverse of
+
+obstacles. We use a look-ahead policy over the horizon T to
+
+the minimum eigenvalue will minimize the uncertainties of
+
+design the path planner. The cost function to be minimized is
+
+the state estimation as well as steer the MAV away from
+
+given by
+∫ t+T
+
+the obstacle. Therefore, the minimization of uncertainties and
+obstacle avoidance are complementary.
+Besides collision avoidance, the objective of the planning
+algorithm is to move the MAV to a goal location, where the
+MAV requires knowledge of its own inertial position and the
+inertial position of the goal. Accordingly, for goal seeking, the
+planning algorithm requires the use of GPS.
+Let τtg , ηtg and ξtg represent the inverse TTC, azimuth,
+
+J=
+t
+
+S(νρ )d ρ ,
+
+(12)
+
+subject to the constraints
+ẋρg = f(xgρ , uρ ),
+ẋρi = f(xiρ , uρ ), i = 1, · · · , n,
+|ϕρ | ≤ ϕmax ,
+
+(13)
+
+|θρ | ≤ θmax .
+
+and elevation to the goal configuration at time t, and let
+
+To solve the constrained optimization problem, we discretize
+
+xtg = [τtg , ηtg , ξtg ]⊤ . Let xti = [τti , ηti , ξti ]⊤ represent the state for
+
+the time horizon T as an m-step look-ahead horizon {t,t +
+
+the ith obstacle in the MAV’s local-level frame map, and let
+
+∆t, · · · ,t +m∆t}, where ∆t = T /m. Equation (12) then becomes
+
+⊤
+
+⊤
+
+νt = [xtg , xt1 , · · · , xtn ⊤ ]⊤ . Let It represent the index set of all
+n obstacles at time step t and let τ l represent the minimum
+
+m
+
+J = ∑ S(νt+ j∆t ).
+
+(14)
+
+j=1
+
+inverse TTC to obstacles that the local planning algorithm
+
+While a variety of techniques could be used to solve this look
+
+reacts to. Let Bt = {i ∈ It : τti ≥ τ l , ηti ≤ π2 , ξti ≤ π2 } represent
+
+ahead problem, in this paper we solve for the optimal path
+
+the index set of obstacles with the inverse TTC no less than τ l
+
+over the m-step look-ahead horizon by using the nonlinear
+
+and with the azimuth and elevation no greater than π2 . Define
+
+7
+
+optimization function fmincon in MATLAB [20]. After solv-
+
+MAV’s center of mass and the center of the obstacle are
+
+ing for the optimal path, the first step of the path is followed
+
+in the same horizontal plane. Figure 3 shows the geometry
+
+before resolving the optimization algorithm at the resulting
+
+of the worst case scenario projected onto the x-y plane of
+
+configuration.
+
+the inertial frame. The minimum turn away distance from
+i
+can be determined when the maximum roll
+the obstacle dmin
+
+IV. A NALYSIS
+
+angle and the maximum flight path angle are applied and the
+
+In this section, we analyze the behavior of the planning
+
+generated circular trajectory with the minimum turning radius
+
+algorithm and describe the characteristics of the environments
+
+rmt is tangent to the boundary of the spherical obstacle. The
+
+in which the algorithm is guaranteed to generate collision-free
+
+horizontal plane passing through the tangent point intersects
+
+paths for the MAV. We focus our analysis on the environments
+
+the surface of the obstacle, generating a circle with the
+
+with spherical obstacles and assume that the locations of
+
+radius R′s . Based on the geometry, the planning algorithm
+
+the obstacles are perfectly known, i.e. without estimation
+
+is guaranteed to avoid the obstacle if the distance from the
+√
+2 −R .
+MAV to the obstacle is greater than (R′s + rmt )2 − rmt
+s
+√
+i
+2 −R >
+Since R′s < Rs , we choose dmin
+= (Rs + rmt )2 − rmt
+s
+√
+2 − R as the minimum turn away distance
+(R′s + rmt )2 − rmt
+s
+
+uncertainties.
+To avoid spherical obstacles, we must satisfy
+V
+≥ Ris , i = 1, · · · , n, ∀ρ ∈ [t,t + T ],
+τρi
+
+(15)
+
+from the obstacle. Accordingly, if the distance to the obstacle
+
+where Ris is the radius of the ith obstacle. To guarantee collision
+
+i , the optimization problem is feasible and
+is greater than dmin
+
+avoidance, it is necessary to establish a minimum turn away
+
+the algorithm will generate a path that avoids the obstacle.
+
+i
+distance dmin
+from each obstacle. The minimum turn away
+
+distance is evaluated at the horizontal plane of the MAV’s
+center of mass. Let ϕmax represent the maximum roll angle
+of the MAV and let θmax represent the maximum pitch angle.
+The minimum turning radius of the MAV is then given by [21]
+rmt =
+
+V 2 cos θmax
+.
+g tan ϕmax
+
+(16)
+
+Lemma 3 establishes the minimum turn away distance for the
+MAV to avoid a spherical obstacle Oi with radius Rs using the
+planning algorithm.
+
+Fig. 3. This figure shows the worst case scenario where the MAV is flying
+perpendicular to a spherical obstacle Oi . The MAV’s center of mass and the
+center of the obstacle are in the same horizontal plane.
+
+Lemma 3: Using the planning algorithm which minimizes
+the cost function (12) subject to the constraints (13) and (15),
+
+For the environments with multiple spherical obstacles,
+
+avoidance of a collision with a spherical obstacle Oi with the
+
+we specify the conditions under which the planning algo-
+
+radius Rs is guaranteed if the distance of the MAV to the
+√
+2 −R .
+obstacle satisfies d > (Rs + rmt )2 − rmt
+s
+
+rithm is guaranteed to generate collision-free paths for the
+
+Proof: Consider the worst case scenario where a MAV
+
+configurations q1 = [q1n , q1e , q1d , q1ψ , q1θ ]⊤ ∈ C and q2 =
+
+is flying perpendicular to a spherical obstacle Oi and the
+
+[q2n , q2e , q2d , q2ψ , q2θ ]⊤ ∈ C , where qin , qie , and qid , i = 1, 2,
+
+MAV. Let C represent the configuration space. For two
+
+8
+
+represent North, East and Down coordinates, and qiψ and qiθ ,
+
+It is obvious that if the planning algorithm can maneuver
+
+i = 1, 2, represent the heading and pitch angles, define the two
+
+the MAV to avoid one of the two obstacles then it can
+
+dimensional distance between q1 and q2 projected on x-y plane
+
+maneuver the MAV to avoid the other. We therefore focus on
+
+of the inertial frame
+
+collision avoidance for the obstacle pairs that are contained
+
+√
+∥q1 − q2 ∥2D , (q1n − q2n )2 + (q1e − q2e )2 .
+
+in D. Consider that the MAV is initially located at q0 with
+(17)
+
+i , ∀i ∈ I , and that it will collide with an obstacle
+dqi 0 > dmin
+
+For a configuration q and the ith obstacle Oi , we define the
+
+Oi if it flies along its initial heading, as shown in Fig. 4.
+
+two dimensional distance between q and the boundary of Oi
+
+i
+Since dqi 0 > dmin
+and the environment is locally sparse, which
+
+as dqi = min ∥q′ − q∥2D . Let d i j =
+
+∥pi − p j ∥2D
+
+i , d j }, in the worst case scenario the
+implies d i j > max{dmin
+min
+
+represent the shortest two dimensional distance between the
+
+planning algorithm leads to a collision-free path from q0 to qA
+
+points along the boundaries of the ith obstacle Oi and the jth
+
+on the boundary of Oi with direction tangent to the boundary,
+
+obstacle O j . Let q0 represent the initial MAV configuration and
+
+j
+where dqjA > dmin
+. This means that the MAV certainly has
+
+let qOi = [qOi n , qOi e , qOi d , qOi ψ , qOi θ ]⊤ represent the configura-
+
+the capability to avoid the obstacle O j when it reaches qA .
+
+tion of the ith obstacle’s center. Let I represent the index
+
+j
+k }, in the worst case
+In addition, since d jk > max{dmin
+, dmin
+
+set of obstacles and let D , {(i, j) ∈ I × I : |qOi d − qO j d | ≤
+
+scenario the planning algorithm leads to a collision-free path
+
+(Ris + Rsj )} represent the set of obstacle pairs in which the
+
+from qA to qB on the boundary of O j with direction tangent to
+
+altitude difference between each two obstacles is no greater
+
+k . This process can be repeated
+the boundary, where dqkB > dmin
+
+than the sum of their radii. We introduce the notion of local
+
+infinitely which implies that the MAV does not collide with
+
+sparseness as Definition 1.
+
+any obstacle for all time t.
+
+q′ ∈∂ Oi
+
+min
+
+pi ∈∂ Oi ,p j ∈∂ O j
+
+Definition 1: An environment is said to be locally sparse if
+i , d j }, ∀(i, j) ∈ D
+d i j > max{dmin
+min
+
+The local sparseness property of an environment means
+that each two obstacles in the environment with the altitude
+difference between them less than the sum of their radii are
+separated by a distance that is is greater than the maximum
+of their minimum turn away distances. Theorem 1 describes
+the collision avoidance behavior of the planning algorithm.
+Theorem 1: If the environment is locally sparse and the
+i , ∀i ∈ I , then
+initial MAV configuration satisfies dqi 0 > dmin
+
+Fig. 4. This figure shows the planning algorithm maneuvers the MAV to
+avoid multiple obstacles.
+
+the planning algorithm, which minimizes the cost function (12)
+subject to the constraints given by (13) and (15), is guaranteed
+
+In Theorem 1, we assumed that the environment is locally
+
+to generate trajectories that will avoid the obstacles for all time
+
+sparse in order to provide a theoretical guarantee for collision
+
+t.
+
+avoidance behavior of the planning algorithm. However, we
+Proof: For the obstacle pairs that are not contained in
+
+note that local sparseness is only a sufficient condition, and
+
+D, there exists an altitude gap between each two obstacles.
+
+that there may be many environments that do not satisfy this
+
+9
+
+condition, but where the MAV may still maneuver without
+collisions.
+
+Figure 5 shows the evolution of the maps using the inverse
+TTC parametrization in the local-level frame and the update
+
+V. N UMERICAL RESULTS
+
+of the actual paths followed by the MAV in the inertial frame.
+Subfigures on the left show the local-level frame maps in
+
+The feasibility of the observability-based planning algorithm
+was tested using a simulation environment developed in MATLAB/SIMULINK, as shown in the subfigures on the right in
+Fig. 5. The simulator uses a six degree of freedom model
+of the aircraft, where a North-East-Down (NED) coordinate
+system is used. The covariance
+
+ matrix of the process noise
+0
+0
+
+ 0.00001
+
+
+i
+
+for each obstacle was Q = 
+0
+0.0001
+0
+
+
+
+
+0
+0
+0.0001
+and the
+ of the measurement noise was
+ covariance matrix
+0
+
+ 0.0012
+Ri = 
+. The values for the initial inverse
+0
+0.0012
+TTC and its standard deviation were set at τ0 = 0.06 and
+
+στ0 = 0.03. The groundspeed was V = 13 m/s. The maximum
+
+spherical coordinates. Subfigures on the right show the actual
+paths. Based on the figures, when the obstacle is first observed,
+the 95% uncertainty region of the inverse TTC includes τ = 0.
+Accordingly, the uncertainties in the inverse TTC map to
+the infinity depth. As time progresses, parallax reduces the
+uncertainties which become progressively smaller, causing the
+uncertainties in the depth to be reduced. Figure 6 shows the
+tracking error and ±2σ bounds for the inverse TTC, azimuth,
+and elevation to the obstacle with x and y coordinates at
+(150, 250).
+
+B. Monte Carlo simulation
+
+roll and pitch angles for the MAV were 30◦ and 15◦ respec-
+
+The local sparseness conditions of Theorem 1 are only
+
+tively. The weights were selected as ai = 1, ∀i = 1, · · · , 3 and
+
+sufficient for collision avoidance of the local planning al-
+
+bi = 10, ∀i = 1, · · · , n. A look-ahead policy over the horizon
+
+gorithm. When the environment is not locally sparse, the
+
+of 6 seconds was used. We tested the algorithm for multiple
+obstacle avoidance scenarios. We also conducted Monte Carlo
+simulations to test the collision avoidance and goal reaching
+performance of the algorithm with varying measurement uncertainties in the environments with varying minimum two
+dimensional distance between obstacles. The objective of the
+Monte Carlo simulations are to illustrate that performance
+degrades gracefully as we relax the zero noise assumption and
+the assumption of local sparseness.
+
+algorithm may still generate collision-free paths. Accordingly,
+we conduct Monte Carlo simulations to demonstrate this is
+true and to quantify the expected behavior of the algorithm. In
+addition, in Section IV the analysis of the performance of the
+planning algorithm does not consider estimation uncertainties
+in the loop. We therefore conduct Monte Carlo simulations
+to test the performance of the algorithm when the estimation
+uncertainties are taken into account.
+For each environment with a fixed minimum two dimensional distance between obstacles, we executed 100 simulation
+
+A. Multiple obstacle avoidance
+
+runs. In each simulation run, the MAV was maneuvered from
+
+In the multiple obstacle avoidance scenario, the MAV
+
+the initial position (120,120,-60) to the end position (580,580,-
+
+was commanded to maneuver through twenty-five spherical
+
+60) through an environment with a fixed minimum two di-
+
+obstacles between waypoint S (0,100,-20) and waypoint E
+
+mensional distance. The environment is constructed such that
+
+(600,700,-100), as shown in the subfigures on the right in
+
+each obstacle is added to the environment based on a uniform
+
+Fig. 5.
+
+distribution over the cubic area with the South-West-Down
+
+10
+
+Inverse TTC tracking error(1/s)
+
+Height (m)
+
+0.06
+
+100
+0
+−100
+200
+
+tracking error
++/−2σ bounds
+
+0.04
+0.02
+0
+−0.02
+−0.04
+−0.06
+0
+
+5
+
+10
+Time(s)
+
+15
+
+20
+
+100
+0
+0
+
+4
+Azimuth tracking error(degree)
+
+−100
+−200 −200 Right wing direction (m)
+
+(a) t = 12s
+
+Height (m)
+
+(a) Inverse TTC tracking error
+
+200
+100
+
+Heading direction
+(m)
+−100
+
+100
+0
+−100
+200
+
+tracking error
++/−2σ bounds
+2
+
+0
+
+−2
+
+−4
+0
+
+5
+
+100
+0
+
+100
+0
+−100
+200
+
+tracking error
++/−2σ bounds
+2
+
+0
+
+−2
+
+−4
+0
+
+100
+0
+
+200
+0
+Right wing direction (m)
+
+5
+
+10
+Time(s)
+
+15
+
+20
+
+(c) Elevation tracking error
+Fig. 6. This figure shows the tracking error and ±2σ bounds for the inverse
+TTC, azimuth, and elevation to the obstacle with x and y coordinates at
+(150, 250).
+
+(c) t = 35s
+
+Height (m)
+
+4
+Elevation tracking error(degree)
+
+Height (m)
+
+(b) t = 24s
+
+−200 −200
+
+20
+
+0
+
+−100
+−200 −200 Right wing direction (m)
+
+Heading direction−100
+(m)
+
+15
+
+(b) Azimuth tracking error
+
+200
+100
+
+Heading direction
+(m)
+−100
+
+10
+Time(s)
+
+corner (100,100,-20) and the North-East-Up corner (600,600,-
+
+100
+0
+−100
+200
+
+100) until no more obstacle can be added. The radius of all
+0
+
+200
+
+Heading direction (m)
+−200 −200
+
+0
+Right wing direction (m)
+
+(d) t = 57s
+
+obstacles is 20 meters. We evaluate two criteria: the number of
+collisions and the percentage of runs where the MAV reached
+the goal. We say that the MAV reaches the goal if it is
+
+Height (m)
+
+maneuvered to the goal in t < 100 seconds without collisions.
+Figure 7 plots the average number of collisions over 100
+
+100
+0
+−100
+200
+
+simulation runs and percentage of runs where the MAV
+0
+
+200
+
+Heading direction (m)
+−200 −200
+
+0
+Right wing direction (m)
+
+reached the goal versus the minimum two dimensional distance between obstacles for the case where the standard
+
+(e) t = 70s
+Fig. 5. This figure shows the evolution of the maps using the inverse TTC
+parametrization in the local-level frame and the update of the actual paths
+followed by the MAV in the inertial frame.
+
+deviation for both azimuth and elevation measurement noise
+is two degrees and for the case where the obstacle locations
+are perfectly known. The solid lines show the results for
+the case with the standard deviation two degrees and the
+dashed lines show the results for the case where the obstacle
+
+11
+
+locations are perfectly known. When the standard deviation is
+
+1.4
+
+as the minimum two dimensional distance between obstacles
+increases from 5 to 20 meters. After the minimum distance
+
+Number of collisions
+
+1.2
+
+two degrees, the number of collisions decreases dramatically
+
+1
+0.8
+0.6
+0.4
+0.2
+0
+5
+
+is greater than 20 meters, the number of collisions decreases
+
+10
+
+15
+20
+25
+Minimum distance (m)
+
+(a)
+
+slowly. Similar phenomenon happens to the percentage of runs
+
+sparse environments cause less collisions. Given V = 13 m/s,
+
+ϕmax = 30◦ , θmax = 15◦ , and Ris = 20 meters, the minimum
+distance satisfying the local sparseness condition is 19.42
+
+100
+Percentage of goal reaching
+
+where the MAV reached the goal. This is because that more
+
+80
+60
+40
+20
+0
+5
+
+meters. Accordingly, when the minimum distance is greater
+
+10
+
+15
+20
+25
+Minimum distance (m)
+
+free paths if the obstacle locations are perfectly known, which
+corresponds to the dashed line in Fig. 7 (a). Because of the
+existence of estimation uncertainties, the MAV still encounters
+
+30
+
+(b)
+
+than or equal to 20 meters, the environments are locally
+sparse and the local planning algorithm guarantees collision-
+
+30
+
+Fig. 7. This figure shows the statistical performance of the observabilitybased planning algorithm implemented in environments with varying minimum two dimensional distance between obstacles for the cases with and
+without measurement uncertainties. Subfigure (a) plots the average number
+of collisions over 100 simulation runs versus the minimum two dimensional
+distance between obstacles. Subfigure (b) plots the percentage of runs where
+the MAV reached the goal versus the minimum two dimensional distance
+between obstacles.
+
+a small number of collisions during its flight to the goal,
+which corresponds to the solid line in Fig. 7 (a). In addition,
+when the minimum distance between obstacles is 10 and 15
+meters, the average number of collisions is less than one. This
+
+as expected, as the standard deviation of the measurement
+noise increases, the number of collisions increases and the
+percentage of runs where the MAV reached the goal decreases.
+
+shows the local planning algorithm generates collision-free
+
+sparseness of the environment is only a sufficient condition for
+collision avoidance behavior of the planning algorithm.
+
+1.4
+1.2
+Number of collisions
+
+paths for environments that are not locally sparse, and the local
+
+1
+0.8
+0.6
+0.4
+0.2
+
+To take into account the effect of estimation uncertain-
+
+0
+0
+
+5
+
+ties, we also conduct Monte Carlo simulations to test the
+
+certainties. The minimum two dimensional distance between
+obstacles is fixed at 20 meters. Similarly, we evaluate the
+number of collisions and the percentage of runs where the
+MAV reached the goal. Let σm represent the standard deviation
+for both azimuth and elevation measurement noise. Figure 8
+(a) plots the average number of collisions over 100 simulation
+runs versus σm . Figure 8 (b) plots the percentage of runs where
+MAV reached the goal versus σm . Based on the figure and
+
+15
+
+20
+
+15
+
+20
+
+(a)
+100
+Percentage of goal reaching
+
+performance of the algorithm with varying measurement un-
+
+10
+σm (degree)
+
+80
+60
+40
+20
+0
+0
+
+5
+
+10
+σm (degree)
+
+(b)
+Fig. 8.
+This figure shows the statistical performance of the planning
+algorithm with varying measurement uncertainties. Subfigure (a) plots the
+average number of collisions over 100 simulation runs versus σm . Subfigure
+(b) plots the percentage of runs where MAV reached the goal versus σm .
+
+12
+
+VI. C ONCLUSIONS
+
+SET, Inc. and Brigham Young University.
+
+This paper presents a vision-based local-level frame map-
+
+R EFERENCES
+
+ping and planning technique for MAVs operating in unknown
+[1] A. Curtis, “Path planning for Unmanned Air and Ground Vehicles in
+
+environments. To explicitly address the obstacle initialization
+problem, we construct local-level frame maps in spherical
+coordinates using the inverse TTC, azimuth, and elevation to
+
+urban environments,” Master’s thesis, Brigham Young University, 2008.
+[2] B. Call, “Obstacle avoidance for Unmanned Air Vehicle using computer
+vision,” Master’s thesis, Brigham Young University, December, 2006.
+[3] E. Frazzoli, M. Dahleh, and E. Feron, “Real-time motion planning
+
+obstacles. Using bearing-only measurements, we employ an
+EKF to estimate the inverse TTC, azimuth, and elevation, and
+perform an observability analysis of state estimation to find
+
+for agile autonomous vehicles,” Journal of Guidance, Control and
+Dynamics, vol. 25, pp. 116–129, Jan.-Feb. 2002.
+[4] Y. Watanabe, E. Johnson, and A. Calise, “Vision-based approach to
+obstacle avoidance,” in Proceedings of the AIAA Guidance, Navigation,
+
+the conditions under which the system is observable. Based on
+the observability conditions, we design a planning algorithm
+that minimizes the uncertainties in the state estimation process
+
+and Control Conference and Exhibit, August 2005.
+[5] A. Pongpunwattana and R. Rysdyk, “Real-time planning for multiple
+autonomous vehicles in dynamics uncertain environments,” AIAA Journal of Aerospace Computing, Information, and Communication, vol. 1,
+
+while simultaneously avoiding collisions with obstacles. We
+describe the characteristics of the environments in which the
+planning algorithm is guaranteed to generate collision-free
+
+pp. 580–604, December 2004.
+[6] K. Sedighi, K. Ashenayi, R. Wainwright, and H. Tai, “Autonomous local
+path planning for a mobile robot using a genetic algorithm,” Congress
+on Evolutionary Computation, vol. 2, pp. 1338–1345, June 2004.
+
+paths for MAVs.
+
+[7] J. Latombe, Robot Motion Planning.
+
+We note that the planning algorithm developed in Section III
+does not assume that the obstacles are spherical. In order
+
+Kluwer Academic Publishers,
+
+Boston, MA, 1991.
+[8] H. Yu, R. Beard, and J. Byrne, “Vision-based local multi-resolution
+mapping and path planning for Miniature Air Vehicles,” in Proceedings
+
+to analyze the algorithm and to make concrete statements
+about its performance, we made three, admittedly unrealistic,
+assumptions in Section IV, namely that the obstacles are
+
+of American Control Conference, June 10-12 2009.
+[9] ——, “Vision-based local multi-resolution path planning and obstacle
+avoidance for Micro Air Vehicles,” in Proceedings of the AIAA Guidance, Navigation and Control Conference, August 10 2009.
+
+spherical, that the estimation algorithm returns perfect noise
+
+[10] ——, “Vision-based navigation frame mapping and planning for col-
+
+free estimates of the position of the obstacles, and that
+
+lision avoidance for Miniature Air Vehicles,” Special Issue on Aerial
+
+the environment is locally sparse. We have shown through
+
+Robotics, Control Engineering Practice, vol. 18, no. 7, pp. 824–836,
+July 2010.
+
+Monte Carlo simulations that the performance of the algorithm
+
+[11] H. Yu and R. Beard, “Vision-based three dimensional navigation frame
+
+degrades gracefully when the second two assumptions are
+
+mapping and planning for collision avoidance for Micro Air Vehicles,”
+
+relaxed. Since the algorithm itself does not use the spherical
+
+in Proceedings of AIAA Guidance, Navigation, and Control Conference,
+August 2-5 2010.
+
+assumption, the first assumption is similarly benign.
+
+[12] H. Yu, R. Sharma, R. Beard, and C. Taylor, “Observability-based local
+path planning and collision avoidance for Micro Air Vehicles using
+
+ACKNOWLEDGMENT
+
+bearing-only measurements,” in Proceedings of IEEE American Control
+Conference, 2011(to appear).
+
+This research was supported in part by the Air Force Re-
+
+[13] J. Civera, A. Davision, and J. Montiel, “Inverse depth parametrization
+
+search Laboratory, Munition Directorate under SBIR contract
+
+for monocular SLAM,” IEEE Transactions on Robotics, vol. 24, pp.
+
+No. FA 8651-07-c-0094 to Scientific Systems Company, Inc.
+
+932–945, Oct. 2008.
+[14] M. Bryson and S. Sukkarieh, “Bearing-only SLAM for an airborne
+
+and Brigham Young University, and was supported in part by
+OSD and AFRL under contract no. FA 8650-08-C-1411 to
+
+vehicle,” in Australian Conference on Robotics and Automation (ACRA’
+05), Sidney, 2005.
+
+13
+
+[15] A. Davision, “Real-time simultaneous localization and mapping with
+a single camera,” in In Proc. International Conference on Computer
+Vision, 2003.
+[16] J. H. Kim and S. Sukkarieh, “Airborne simultaneous localisation and
+map building,” in In Proceedings of the IEEE International Conference
+on Robotics and Automation, 2003, pp. 406–411.
+[17] F. Lewis, Optimal Estimation: With An Introduction To Stochastic
+Control Theory. New York: Wiley, 1986.
+[18] R. Hermann and A. Krener, “Nonlinear controllability and observability,”
+IEEE Transaction on Automatic Control, vol. 22, no. 5, pp. 728–740,
+Oct 1977.
+[19] Y. Song and J. W. Grizzle, “The extended Kalman Filter as a local
+asymptotic observer for discrete-time nonlinear system,” Journal of
+Mathemetical Systems, Estimation, and Control, vol. 5, pp. 59–78, 1995.
+[20] MathWorks, Optimization Toolbox, http://www.mathworks.com/.
+[21] R. W. Beard and T. W. McLain, Small Unmanned Aircraft: Theory and
+Practice.
+
+Princeton University Press, 2011 (to appear).
+
+
