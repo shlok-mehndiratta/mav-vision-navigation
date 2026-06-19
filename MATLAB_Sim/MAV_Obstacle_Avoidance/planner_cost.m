@@ -9,8 +9,8 @@ function J = planner_cost(U_vec, current_state, ekf_state, V, dt, obs_radius, go
     J = 0; % Initial cost
     g = 9.81;
     
-    % Weights from the paper (Section V)
-    a1 = 1; a2 = 1; a3 = 1; bi = 10;
+    % Weights from the paper (Rebalanced to strongly pull distance to zero)
+    a1 = 5000; a2 = 100; a3 = 100; bi = 5000;
     
     sim_state = current_state;
     sim_ekf = ekf_state;
@@ -47,18 +47,23 @@ function J = planner_cost(U_vec, current_state, ekf_state, V, dt, obs_radius, go
         goal_cost = (a1 / (tau_g^2 + 1e-6)) + a2 * eta_g^2 + a3 * xi_g^2;
         
         % 4. Observability / Collision Avoidance Cost
-        % The paper proves the system is "Unobservable" (and on a collision course)
-        % if these specific mathematical terms hit zero:
-        O31 = (cos(theta)*sin(eta)) / cos(xi);
-        O41 = cos(theta)*cos(eta)*sin(xi) - sin(theta)*cos(xi);
-        O51 = (4*tau*cos(theta)^2 * sin(eta)*cos(eta))/(cos(xi)^2) - (psi_dot*cos(theta)*cos(eta))/cos(xi);
-        
-        % The penalty is the inverse of their magnitude (blows up if flying straight at obstacle)
-        observability_penalty = bi / (O31^2 + O41^2 + O51^2 + 1e-6);
-        
-        % Hard collision penalty if predicted distance < safe radius
-        if (V / sim_ekf(1)) < (obs_radius * 1.5)
-            observability_penalty = observability_penalty + 10000; 
+        % The paper uses an indicator function I_Bt so it ONLY cares about
+        % the obstacle if it is IN FRONT of the MAV. 
+        % If eta > 90 degrees (pi/2), the obstacle is behind us, so ignore it!
+        if abs(eta) < pi/2 && abs(xi) < pi/2
+            O31 = (cos(theta)*sin(eta)) / cos(xi);
+            O41 = cos(theta)*cos(eta)*sin(xi) - sin(theta)*cos(xi);
+            O51 = (4*tau*cos(theta)^2 * sin(eta)*cos(eta))/(cos(xi)^2) - (psi_dot*cos(theta)*cos(eta))/cos(xi);
+            
+            observability_penalty = bi / (O31^2 + O41^2 + O51^2 + 1e-6);
+            
+            % Hard collision penalty if predicted distance < safe radius
+            % Use abs(tau) to prevent negative distance bugs
+            if (V / (abs(tau) + 1e-6)) < (obs_radius * 1.5)
+                observability_penalty = observability_penalty + 1e8; % Massive penalty for near collision
+            end
+        else
+            observability_penalty = 0; % Obstacle is behind us, zero penalty!
         end
         
         % Accumulate total cost for this step
