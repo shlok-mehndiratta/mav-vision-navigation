@@ -74,9 +74,12 @@ view(3); axis equal;
 
 % Figure 2: Camera Data
 figure('Name', 'Phase 2: Camera Measurements', 'Color', 'w');
-plot(time(1:end-1), rad2deg(camera_measurements(1, :)), 'r.', 'MarkerSize', 8); hold on;
-plot(time(1:end-1), rad2deg(true_azimuth_history), 'k-', 'LineWidth', 2);
+% Unwrap expects radians, so we unwrap first, then convert to degrees
+plot(time(1:end-1), rad2deg(unwrap(camera_measurements(1, :))), 'r.', 'MarkerSize', 8); hold on;
+plot(time(1:end-1), rad2deg(unwrap(true_azimuth_history)), 'k-', 'LineWidth', 2);
+
 grid on;
 xlabel('Time (s)'); ylabel('Azimuth Angle (degrees)');
 title('Virtual Camera Output vs True Azimuth');
 legend('Noisy Camera Measurements', 'True Azimuth');
+
