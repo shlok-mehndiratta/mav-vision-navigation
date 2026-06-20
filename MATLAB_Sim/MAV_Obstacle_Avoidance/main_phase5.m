@@ -98,8 +98,8 @@ plot3(Pe_hist, Pn_hist, -Pd_hist, 'b-', 'LineWidth', 2); hold on; grid on;
 plot3(Pe_hist(1), Pn_hist(1), -Pd_hist(1), 'go', 'MarkerFaceColor', 'g');
 plot3(goal_pos(2), goal_pos(1), -goal_pos(3), 'k*', 'MarkerSize', 10);
 
-% Plot Multiple Obstacles
-[X, Y, Z] = sphere(20); 
+% Plot Multiple Obstacles (Reduced resolution to prevent lag)
+[X, Y, Z] = sphere(10); 
 colors = ['r', 'm', 'c', 'y', 'g', 'b'];
 
 for j = 1:num_obs
@@ -109,13 +109,26 @@ end
 
 xlabel('East (m)'); ylabel('North (m)'); zlabel('Height (m)');
 title('Global 3D Trajectory (Fig 5)');
+set(gca, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'ZColor', 'k', 'GridColor', 'k');
 view(3); axis equal;
 
 % =========================================================================
 % FIGURE 2: Local-Level Frame Map in Spherical Coordinates (Figure 2)
 % =========================================================================
 figure('Name', 'Paper Reproduction: Figure 2 (Local Map)', 'Color', 'w');
-hold on; grid on;
+hold on; 
+
+% --- Draw Circular / Polar Grid (Radar Map look) ---
+% The paper's map has a circular/spherical aesthetic
+theta_grid = linspace(0, 2*pi, 100);
+for r_grid = 50:50:300
+    % Concentric circles in the XY plane (Height = 0)
+    plot3(r_grid*sin(theta_grid), r_grid*cos(theta_grid), zeros(size(theta_grid)), 'Color', [0.8 0.8 0.8], 'LineStyle', '--');
+end
+% Radial spokes
+for angle = 0:pi/4:(2*pi - pi/4)
+    plot3([0, 300*sin(angle)], [0, 300*cos(angle)], [0, 0], 'Color', [0.8 0.8 0.8], 'LineStyle', '--');
+end
 
 % The origin of the local map is the MAV's position
 plot3(0, 0, 0, 'r^', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
@@ -149,22 +162,20 @@ for j = 1:num_obs
     % Generate 95% uncertainty bounds (+/- 2 sigma)
     tau_samples = linspace(tau_est - 2*sigma_tau, tau_est + 2*sigma_tau, 100);
     
-    for k = 1:length(tau_samples)
-        if tau_samples(k) > 0.005 
-            r_k = V / tau_samples(k); 
-            
-            x_k = r_k * cos(xi_est) * cos(eta_est); % Heading
-            y_k = r_k * cos(xi_est) * sin(eta_est); % Right Wing
-            z_k = r_k * sin(xi_est);                % Down
-            
-            % Plot the blue dots (y is Right, x is Heading, -z is Height)
-            plot3(y_k, x_k, -z_k, 'b.', 'MarkerSize', 4);
-        end
-    end
+    % Vectorized plotting to eliminate 3D rotation lag
+    valid_tau = tau_samples(tau_samples > 0.005);
+    r_k = V ./ valid_tau; 
+    x_k = r_k .* cos(xi_est) .* cos(eta_est); 
+    y_k = r_k .* cos(xi_est) .* sin(eta_est); 
+    z_k = r_k .* sin(xi_est);                
+    
+    % Plot all blue dots for this obstacle at once
+    plot3(y_k, x_k, -z_k, 'b.', 'MarkerSize', 4);
 end
 
 xlabel('Right wing direction (m)'); ylabel('Heading direction (m)'); zlabel('Height (m)');
-title('Local-Level Map w/ Uncertainty (Fig 2)');
-legend('MAV', 'True Obstacles', '95% Uncertainty (Blue Dots)');
-view(3); axis equal;
+title('Local-Level Map in Spherical Coordinates (Fig 2)');
+legend('Radar Rings', 'Radial Spokes', 'MAV', 'True Obstacles', '95% Uncertainty (Blue Dots)');
+set(gca, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'ZColor', 'k', 'GridColor', 'k');
+view(-30, 30); axis equal; grid off;
 set(gca, 'XDir', 'reverse'); % To match standard local-level visual representation where front is up

@@ -6,7 +6,7 @@ clc; clear; close all;
 % In the paper, they ran 100 simulations per data point. 
 % For testing purposes, we default to 3 so it doesn't take hours to run on a laptop!
 % Change this to 100 later if you want academic-level statistical confidence.
-num_sims = 3; 
+num_sims = 10; 
 
 % We will test environments with 2, 4, 6, and 8 obstacles.
 num_obs_array = [2, 4, 6, 8];
