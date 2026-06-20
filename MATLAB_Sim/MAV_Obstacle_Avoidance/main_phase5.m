@@ -90,21 +90,72 @@ Pn_hist = state_history(1, :);
 Pe_hist = state_history(2, :);
 Pd_hist = state_history(3, :);
 
-figure('Name', 'Phase 5: Multi-Obstacle Avoidance', 'Color', 'w');
+figure('Name', 'Paper Reproduction: Figures 2 and 5', 'Color', 'w', 'Position', [100, 100, 1200, 500]);
+
+% =========================================================================
+% SUBPLOT 1: Global Trajectory (Figure 5 reproduction)
+% =========================================================================
+subplot(1, 2, 1);
 plot3(Pe_hist, Pn_hist, -Pd_hist, 'b-', 'LineWidth', 2); hold on; grid on;
 plot3(Pe_hist(1), Pn_hist(1), -Pd_hist(1), 'go', 'MarkerFaceColor', 'g');
 plot3(goal_pos(2), goal_pos(1), -goal_pos(3), 'k*', 'MarkerSize', 10);
 
 % Plot Multiple Obstacles
 [X, Y, Z] = sphere(20); 
-colors = ['r', 'm', 'c']; % Different colors for fun
+colors = ['r', 'm', 'c', 'y', 'g', 'b'];
 
 for j = 1:num_obs
     surf(obs_positions(2,j) + X*obs_radius, obs_positions(1,j) + Y*obs_radius, -(obs_positions(3,j) + Z*obs_radius), ...
-        'FaceColor', colors(mod(j-1,3)+1), 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+        'FaceColor', colors(mod(j-1,length(colors))+1), 'FaceAlpha', 0.5, 'EdgeColor', 'none');
 end
 
 xlabel('East (m)'); ylabel('North (m)'); zlabel('Height (m)');
-title('Multi-Obstacle Autonomous Avoidance');
-legend('MAV Trajectory', 'Start', 'Goal', 'Obstacle 1');
+title('Global 3D Trajectory (Fig 5)');
+view(3); axis equal;
+
+% =========================================================================
+% SUBPLOT 2: Local-Level Frame Map in Spherical Coordinates (Figure 2)
+% =========================================================================
+subplot(1, 2, 2);
+hold on; grid on;
+
+% The origin of the local map is the MAV's final position
+plot3(0, 0, 0, 'r^', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
+
+for j = 1:num_obs
+    tau_est = x_est(1, j);
+    eta_est = x_est(2, j);
+    xi_est  = x_est(3, j);
+    sigma_tau = sqrt(P_est{j}(1,1));
+    
+    % True position of the obstacle relative to the MAV's final position
+    R_yaw = [cos(current_state(4)), sin(current_state(4)), 0;
+            -sin(current_state(4)), cos(current_state(4)), 0; 
+             0, 0, 1];
+    rel_local = R_yaw * (obs_positions(:, j) - current_state(1:3));
+    
+    % Plot the true obstacle location as a red dot
+    plot3(rel_local(2), rel_local(1), -rel_local(3), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
+    
+    % Generate 95% uncertainty bounds (+/- 2 sigma)
+    % The paper represents this region using blue dots along the line of sight
+    tau_samples = linspace(tau_est - 2*sigma_tau, tau_est + 2*sigma_tau, 100);
+    
+    for k = 1:length(tau_samples)
+        if tau_samples(k) > 0.005 
+            r_k = V / tau_samples(k); 
+            
+            x_k = r_k * cos(xi_est) * cos(eta_est); % Heading
+            y_k = r_k * cos(xi_est) * sin(eta_est); % Right Wing
+            z_k = r_k * sin(xi_est);                % Down
+            
+            % Plot the blue dots (y is Right, x is Heading, -z is Height)
+            plot3(y_k, x_k, -z_k, 'b.', 'MarkerSize', 4);
+        end
+    end
+end
+
+xlabel('Right wing direction (m)'); ylabel('Heading direction (m)'); zlabel('Height (m)');
+title('Local-Level Map w/ Uncertainty (Fig 2)');
+legend('MAV', 'True Obstacles', '95% Uncertainty (Blue Dots)');
 view(3); axis equal;
