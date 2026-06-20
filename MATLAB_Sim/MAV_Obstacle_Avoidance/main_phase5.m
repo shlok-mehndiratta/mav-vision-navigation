@@ -90,12 +90,10 @@ Pn_hist = state_history(1, :);
 Pe_hist = state_history(2, :);
 Pd_hist = state_history(3, :);
 
-figure('Name', 'Paper Reproduction: Figures 2 and 5', 'Color', 'w', 'Position', [100, 100, 1200, 500]);
-
 % =========================================================================
-% SUBPLOT 1: Global Trajectory (Figure 5 reproduction)
+% FIGURE 1: Global Trajectory (Figure 5 reproduction)
 % =========================================================================
-subplot(1, 2, 1);
+figure('Name', 'Paper Reproduction: Figure 5 (Global Trajectory)', 'Color', 'w');
 plot3(Pe_hist, Pn_hist, -Pd_hist, 'b-', 'LineWidth', 2); hold on; grid on;
 plot3(Pe_hist(1), Pn_hist(1), -Pd_hist(1), 'go', 'MarkerFaceColor', 'g');
 plot3(goal_pos(2), goal_pos(1), -goal_pos(3), 'k*', 'MarkerSize', 10);
@@ -114,31 +112,41 @@ title('Global 3D Trajectory (Fig 5)');
 view(3); axis equal;
 
 % =========================================================================
-% SUBPLOT 2: Local-Level Frame Map in Spherical Coordinates (Figure 2)
+% FIGURE 2: Local-Level Frame Map in Spherical Coordinates (Figure 2)
 % =========================================================================
-subplot(1, 2, 2);
+figure('Name', 'Paper Reproduction: Figure 2 (Local Map)', 'Color', 'w');
 hold on; grid on;
 
-% The origin of the local map is the MAV's final position
+% The origin of the local map is the MAV's position
 plot3(0, 0, 0, 'r^', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
 
+% Use the state and EKF estimates from the VERY FIRST step so obstacles 
+% are in front of the MAV, just like in the paper.
+snap_state = state_history(:, 1);
+snap_x_est = zeros(3, num_obs);
+snap_P_est = cell(1, num_obs);
 for j = 1:num_obs
-    tau_est = x_est(1, j);
-    eta_est = x_est(2, j);
-    xi_est  = x_est(3, j);
-    sigma_tau = sqrt(P_est{j}(1,1));
+    z_init = virtual_camera(snap_state, obs_positions(:, j), noise_std);
+    snap_x_est(:, j) = [0.06; z_init(1); z_init(2)];
+    snap_P_est{j} = diag([0.03^2, R_var, R_var]);
+end
+
+for j = 1:num_obs
+    tau_est = snap_x_est(1, j);
+    eta_est = snap_x_est(2, j);
+    xi_est  = snap_x_est(3, j);
+    sigma_tau = sqrt(snap_P_est{j}(1,1));
     
-    % True position of the obstacle relative to the MAV's final position
-    R_yaw = [cos(current_state(4)), sin(current_state(4)), 0;
-            -sin(current_state(4)), cos(current_state(4)), 0; 
+    % True position of the obstacle relative to the MAV's snapshot position
+    R_yaw = [cos(snap_state(4)), sin(snap_state(4)), 0;
+            -sin(snap_state(4)), cos(snap_state(4)), 0; 
              0, 0, 1];
-    rel_local = R_yaw * (obs_positions(:, j) - current_state(1:3));
+    rel_local = R_yaw * (obs_positions(:, j) - snap_state(1:3));
     
     % Plot the true obstacle location as a red dot
     plot3(rel_local(2), rel_local(1), -rel_local(3), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
     
     % Generate 95% uncertainty bounds (+/- 2 sigma)
-    % The paper represents this region using blue dots along the line of sight
     tau_samples = linspace(tau_est - 2*sigma_tau, tau_est + 2*sigma_tau, 100);
     
     for k = 1:length(tau_samples)
@@ -159,3 +167,4 @@ xlabel('Right wing direction (m)'); ylabel('Heading direction (m)'); zlabel('Hei
 title('Local-Level Map w/ Uncertainty (Fig 2)');
 legend('MAV', 'True Obstacles', '95% Uncertainty (Blue Dots)');
 view(3); axis equal;
+set(gca, 'XDir', 'reverse'); % To match standard local-level visual representation where front is up
