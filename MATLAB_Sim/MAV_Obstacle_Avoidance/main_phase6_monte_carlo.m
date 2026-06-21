@@ -6,8 +6,6 @@ clc; clear; close all;
 
 %% 1. Monte Carlo Configuration
 % In the paper, they ran 100 simulations per data point. 
-% For testing purposes, we default to 2 runs so it executes quickly.
-% Change this to 100 later if you want perfectly smooth academic curves.
 num_sims = 2; 
 
 % Test Array 1: Minimum Distance (Figure 7)
@@ -44,8 +42,8 @@ for i = 1:length(min_dist_array)
     col_perf_sum = 0;  goal_perf_sum = 0;
     
     for sim = 1:num_sims
-        % 1. Generate Environment with 25 obstacles enforcing min 2D distance
-        obs_positions = generate_environment(25, min_dist);
+        % 1. Generate Environment until no more obstacles can be added
+        obs_positions = generate_environment(min_dist);
         
         % 2. Run simulation WITH measurement noise (Solid Line in Fig 7)
         [c_noisy, g_noisy] = run_single_sim(obs_positions, noise_std_fixed, false);
@@ -84,7 +82,7 @@ for i = 1:length(sigma_m_array)
     
     col_sum = 0; goal_sum = 0;
     for sim = 1:num_sims
-        obs_positions = generate_environment(25, min_dist_fixed);
+        obs_positions = generate_environment(min_dist_fixed);
         
         [c, g] = run_single_sim(obs_positions, noise_std_test, false);
         col_sum = col_sum + c;
@@ -134,13 +132,14 @@ set(gca, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridColor', 'k');
 %% ========================================================================
 % LOCAL FUNCTIONS
 % =========================================================================
-function obs_positions = generate_environment(num_obs, min_dist)
+function obs_positions = generate_environment(min_dist)
     % Uniform distribution over cubic area (100,100,-20) to (600,600,-100)
+    % Paper: "each obstacle is added... until no more obstacle can be added."
     obs_positions = [];
-    max_attempts = 1000; % Prevent infinite loops
-    attempts = 0;
+    max_consecutive_failures = 500; % Stop trying after 500 failed placements
+    failures = 0;
     
-    while size(obs_positions, 2) < num_obs && attempts < max_attempts
+    while failures < max_consecutive_failures
         pos = [100 + rand * 500;  % North
                100 + rand * 500;  % East
                -20 - rand * 80];  % Down
@@ -150,18 +149,27 @@ function obs_positions = generate_environment(num_obs, min_dist)
         else
             % Calculate 2D distance to all existing obstacles
             dists = sqrt((obs_positions(1,:) - pos(1)).^2 + (obs_positions(2,:) - pos(2)).^2);
-            if all(dists >= min_dist)
+            
+            % Ensure it doesn't spawn exactly on the Start (120, 120) or Goal (580, 580)
+            dist_to_start = norm(pos(1:2) - [120; 120]);
+            dist_to_goal = norm(pos(1:2) - [580; 580]);
+            
+            if all(dists >= min_dist) && dist_to_start > 30 && dist_to_goal > 30
                 obs_positions = [obs_positions, pos];
+                failures = 0; % Reset failures because we successfully placed one
+            else
+                failures = failures + 1;
             end
         end
-        attempts = attempts + 1;
     end
 end
 
 function [num_collisions, reached_goal] = run_single_sim(obs_positions, noise_std, use_true_state)
     dt = 0.5; t_end = 100; time = 0:dt:t_end; V = 13;
-    initial_state = [0; 100; -20; 0];
-    goal_pos = [600; 700; -100];
+    
+    % As stated in Section V.B of the paper:
+    initial_state = [120; 120; -60; 0];
+    goal_pos = [580; 580; -60];
     obs_radius = 20;
     
     num_obs = size(obs_positions, 2);
@@ -186,7 +194,8 @@ function [num_collisions, reached_goal] = run_single_sim(obs_positions, noise_st
         end
     end
     
-    m_horizon = 3; phi_max = deg2rad(30); theta_max = deg2rad(15);
+    m_horizon = 12; % Paper used exactly a 6-second look-ahead horizon (12 steps * 0.5 dt = 6s)
+    phi_max = deg2rad(30); theta_max = deg2rad(15);
     lb = repmat([-phi_max, -theta_max], 1, m_horizon);
     ub = repmat([phi_max,  theta_max], 1, m_horizon);
     options = optimoptions('fmincon', 'Display', 'none', 'Algorithm', 'sqp');
