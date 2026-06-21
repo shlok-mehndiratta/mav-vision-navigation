@@ -6,7 +6,7 @@ clc; clear; close all;
 
 %% 1. Monte Carlo Configuration
 % In the paper, they ran 100 simulations per data point. 
-num_sims = 2; 
+num_sims = 10; 
 
 % Test Array 1: Minimum Distance (Figure 7)
 min_dist_array = [5, 10, 15, 20, 25, 30];
@@ -41,7 +41,7 @@ for i = 1:length(min_dist_array)
     col_noisy_sum = 0; goal_noisy_sum = 0;
     col_perf_sum = 0;  goal_perf_sum = 0;
     
-    for sim = 1:num_sims
+    parfor sim = 1:num_sims
         % 1. Generate Environment until no more obstacles can be added
         obs_positions = generate_environment(min_dist);
         
@@ -81,7 +81,7 @@ for i = 1:length(sigma_m_array)
     noise_std_test = deg2rad(sigma_deg) * ones(2, 1);
     
     col_sum = 0; goal_sum = 0;
-    for sim = 1:num_sims
+    parfor sim = 1:num_sims
         obs_positions = generate_environment(min_dist_fixed);
         
         [c, g] = run_single_sim(obs_positions, noise_std_test, false);
@@ -136,8 +136,9 @@ function obs_positions = generate_environment(min_dist)
     % Uniform distribution over cubic area (100,100,-20) to (600,600,-100)
     % Paper: "each obstacle is added... until no more obstacle can be added."
     obs_positions = [];
-    max_consecutive_failures = 500; % Stop trying after 500 failed placements
+    max_consecutive_failures = 200; % Stop trying after 200 failed placements
     failures = 0;
+    obs_radius = 20;
     
     while failures < max_consecutive_failures
         pos = [100 + rand * 500;  % North
@@ -150,11 +151,15 @@ function obs_positions = generate_environment(min_dist)
             % Calculate 2D distance to all existing obstacles
             dists = sqrt((obs_positions(1,:) - pos(1)).^2 + (obs_positions(2,:) - pos(2)).^2);
             
+            % PAPER FIX: min_dist is the distance between BOUNDARIES. 
+            % Therefore, center-to-center distance must be at least min_dist + (2 * obs_radius)
+            required_center_dist = min_dist + (2 * obs_radius);
+            
             % Ensure it doesn't spawn exactly on the Start (120, 120) or Goal (580, 580)
             dist_to_start = norm(pos(1:2) - [120; 120]);
             dist_to_goal = norm(pos(1:2) - [580; 580]);
             
-            if all(dists >= min_dist) && dist_to_start > 30 && dist_to_goal > 30
+            if all(dists >= required_center_dist) && dist_to_start > 30 && dist_to_goal > 30
                 obs_positions = [obs_positions, pos];
                 failures = 0; % Reset failures because we successfully placed one
             else
@@ -183,9 +188,12 @@ function [num_collisions, reached_goal] = run_single_sim(obs_positions, noise_st
     for j = 1:num_obs
         if use_true_state
             % Inject perfect truth directly bypassing camera and EKF
-            rel_pos = obs_positions(:, j) - current_state(1:3);
-            dist = norm(rel_pos);
-            x_est(:, j) = [V / dist; atan2(rel_pos(2), rel_pos(1)); asin(rel_pos(3) / dist)];
+            R_yaw = [cos(current_state(4)), sin(current_state(4)), 0;
+                    -sin(current_state(4)), cos(current_state(4)), 0; 
+                     0, 0, 1];
+            rel_local = R_yaw * (obs_positions(:, j) - current_state(1:3));
+            dist = norm(rel_local);
+            x_est(:, j) = [V / dist; atan2(rel_local(2), rel_local(1)); asin(rel_local(3) / dist)];
             P_est{j} = eye(3) * 1e-6; % Tiny covariance
         else
             z_init = virtual_camera(current_state, obs_positions(:, j), noise_std);
@@ -206,8 +214,17 @@ function [num_collisions, reached_goal] = run_single_sim(obs_positions, noise_st
     
     for i = 1:(length(time)-1)
         U0 = zeros(1, 2*m_horizon);
-        % Pass x_est to the planner
-        U_opt = fmincon(@(U) planner_cost_multi(U, current_state, x_est, V, dt, obs_radius, goal_pos, obs_positions), ...
+        
+        % HUGE OPTIMIZATION: Only pass obstacles within 150 meters to fmincon
+        dists_to_obs = sqrt((obs_positions(1,:) - current_state(1)).^2 + ...
+                            (obs_positions(2,:) - current_state(2)).^2 + ...
+                            (obs_positions(3,:) - current_state(3)).^2);
+        close_idx = dists_to_obs < 150;
+        obs_positions_local = obs_positions(:, close_idx);
+        x_est_local = x_est(:, close_idx);
+        
+        % Pass filtered x_est to the planner
+        U_opt = fmincon(@(U) planner_cost_multi(U, current_state, x_est_local, V, dt, obs_radius, goal_pos, obs_positions_local), ...
                         U0, [], [], [], [], lb, ub, [], options);
         u_apply = [U_opt(1); U_opt(2)];
         
