@@ -1,4 +1,4 @@
-% MAIN_PHASE6_MONTE_CARLO: Statistical Analysis (Figures 7 & 8 reproduction)
+MAIN_PHASE6_MONTE_CARLO: Statistical Analysis (Figures 7 & 8 reproduction)
 % This script runs multiple headless simulations with varying parameters
 % to reproduce the academic statistical robustness curves.
 
@@ -6,7 +6,7 @@ clc; clear; close all;
 
 %% 1. Monte Carlo Configuration
 % In the paper, they ran 100 simulations per data point. 
-num_sims = 10; 
+num_sims = 100; 
 
 % Test Array 1: Minimum Distance (Figure 7)
 min_dist_array = [5, 10, 15, 20, 25, 30];
