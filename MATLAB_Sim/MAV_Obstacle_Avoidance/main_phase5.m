@@ -47,6 +47,11 @@ lb = repmat([-phi_max, -theta_max], 1, m_horizon);
 ub = repmat([phi_max,  theta_max], 1, m_horizon);
 options = optimoptions('fmincon', 'Display', 'none', 'Algorithm', 'sqp');
 
+% --- EKF Tracking History for Figure 6 (Obstacle 1) ---
+true_states_hist = zeros(3, length(time));
+est_states_hist  = zeros(3, length(time));
+cov_hist         = zeros(3, length(time));
+
 %% 2. Main Simulation Loop
 disp('Simulating multi-obstacle autonomous flight...');
 
@@ -68,14 +73,29 @@ for i = 1:(length(time) - 1)
     
     u_apply = [U_opt(1); U_opt(2)];
     
-    % --- 2. MAV Moves ---
+    % --- 2. Record history for Figure 6 (Obstacle 1) ---
+    R_yaw = [cos(current_state(4)), sin(current_state(4)), 0;
+            -sin(current_state(4)), cos(current_state(4)), 0; 
+             0, 0, 1];
+    rel_local = R_yaw * (obs_positions(:, 1) - current_state(1:3));
+    r_true = norm(rel_local);
+    
+    true_states_hist(:, i) = [V / r_true; atan2(rel_local(2), rel_local(1)); asin(rel_local(3) / r_true)];
+    est_states_hist(:, i) = x_est(:, 1);
+    cov_hist(:, i) = [sqrt(P_est{1}(1,1)); sqrt(P_est{1}(2,2)); sqrt(P_est{1}(3,3))];
+    
+    % --- 3. MAV Moves ---
     state_dot = mav_kinematics(0, current_state, u_apply, V);
     current_state = current_state + state_dot * dt;
     state_history(:, i+1) = current_state;
     
-    if norm(current_state(1:3) - goal_pos) < 10
+    if norm(current_state(1:3) - goal_pos) < 30
         disp('Goal Reached!');
         state_history = state_history(:, 1:i+1); 
+        true_states_hist = true_states_hist(:, 1:i);
+        est_states_hist = est_states_hist(:, 1:i);
+        cov_hist = cov_hist(:, 1:i);
+        time = time(1:i);
         break;
     end
     
@@ -86,6 +106,14 @@ for i = 1:(length(time) - 1)
         
         x_est(:, j) = x_j;
         P_est{j} = P_j;
+    end
+    
+    % If simulation ends without reaching goal, trim arrays
+    if i == length(time) - 1
+        true_states_hist = true_states_hist(:, 1:i);
+        est_states_hist = est_states_hist(:, 1:i);
+        cov_hist = cov_hist(:, 1:i);
+        time = time(1:i);
     end
 end
 
@@ -191,6 +219,42 @@ set(gca, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'ZColor', 'k', 'GridColor',
 view(-30, 30); axis equal; grid off;
 set(gca, 'XDir', 'reverse'); % To match standard local-level visual representation where front is up
 
+% =========================================================================
+% FIGURE 3: Tracking Error and 2-Sigma Bounds (Figure 6)
+% =========================================================================
+figure('Name', 'Paper Reproduction: Figure 6 (Tracking Error)', 'Color', 'w');
+
+% Calculate errors
+err_tau = est_states_hist(1, :) - true_states_hist(1, :);
+err_eta = rad2deg(wrapToPi(est_states_hist(2, :) - true_states_hist(2, :)));
+err_xi  = rad2deg(wrapToPi(est_states_hist(3, :) - true_states_hist(3, :)));
+
+sigma_tau = cov_hist(1, :);
+sigma_eta = rad2deg(cov_hist(2, :));
+sigma_xi  = rad2deg(cov_hist(3, :));
+
+subplot(3,1,1);
+plot(time, err_tau, 'k', 'LineWidth', 1.5); hold on;
+plot(time, 2*sigma_tau, 'b--', 'LineWidth', 1.5);
+plot(time, -2*sigma_tau, 'b--', 'LineWidth', 1.5);
+ylabel('Inverse TTC error (1/s)');
+title('Tracking Error and \pm 2\sigma Bounds for Obstacle 1 (Fig 6)');
+grid on;
+
+subplot(3,1,2);
+plot(time, err_eta, 'k', 'LineWidth', 1.5); hold on;
+plot(time, 2*sigma_eta, 'b--', 'LineWidth', 1.5);
+plot(time, -2*sigma_eta, 'b--', 'LineWidth', 1.5);
+ylabel('\eta error (degree)');
+grid on;
+
+subplot(3,1,3);
+plot(time, err_xi, 'k', 'LineWidth', 1.5); hold on;
+plot(time, 2*sigma_xi, 'b--', 'LineWidth', 1.5);
+plot(time, -2*sigma_xi, 'b--', 'LineWidth', 1.5);
+xlabel('Time (s)');
+ylabel('\xi error (degree)');
+grid on;
 %% ========================================================================
 % LOCAL FUNCTIONS
 % =========================================================================
